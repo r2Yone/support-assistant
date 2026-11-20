@@ -1,0 +1,58 @@
+# Blueprint de Render del Support Assistant (spec/04-production.md, «Render»).
+# El servicio se llama igual que el repositorio de GitHub (support-assistant).
+# Render publica solo cuando el pipeline de CI (style, unit, e2e, docker) pasa.
+services:
+  - type: web
+    name: support-assistant
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      # Valores fijos de producción: con ENVIRONMENT=production el producto se
+      # niega a arrancar si no se cumplen las reglas de compliance.
+      - key: ENVIRONMENT
+        value: production
+      - key: MODEL_PROVIDER
+        value: gateway
+      - key: CF_GATEWAY_ID
+        value: support-assistant
+      # Decisión aceptada en doc/compliance-checklist.md; se apaga con false.
+      - key: LOG_CONVERSATION_TEXT
+        value: "true"
+      - key: HIDE_INPUTS
+        value: "true"
+      - key: HIDE_OUTPUTS
+        value: "true"
+      # Modo demo (spec/05-demo.md): la página responde sin clave, con un límite
+      # por IP y un tope de gasto diario. Render pone un proxy delante, así que la
+      # IP se toma de la última entrada de X-Forwarded-For.
+      - key: PUBLIC_PAGE
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: PUBLIC_RATE_LIMIT_PER_MINUTE
+        value: "5"
+      - key: DAILY_BUDGET_USD
+        value: "0.50"
+      # Trazas (spec/06-traces.md): encendidas, en su propio proyecto y con la meta
+      # de latencia de 4 segundos. Sin LANGSMITH_API_KEY quedan apagadas; con
+      # HIDE_INPUTS y HIDE_OUTPUTS en true solo sale el consumo, nunca el texto.
+      - key: LANGSMITH_TRACING
+        value: "true"
+      - key: LANGSMITH_PROJECT
+        value: support-assistant
+      - key: SLO_P95_MS
+        value: "4000"
+      # Secretos: se escriben en Render al crear el Blueprint, nunca aquí.
+      - key: API_KEYS
+        sync: false
+      - key: CF_ACCOUNT_ID
+        sync: false
+      - key: CF_API_TOKEN
+        sync: false
+      # LANGSMITH_API_KEY no va en el Blueprint: es opcional y Render exigiría un
+      # valor al crearlo. Si se encienden las trazas, se agrega en
+      # Render > Environment.

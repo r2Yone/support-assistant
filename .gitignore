@@ -1,0 +1,26 @@
+# Configuración local con secretos: nunca se sube al repositorio.
+.env
+.env.*
+!.env.example
+
+# Entornos virtuales.
+.venv/
+venv/
+
+# Cachés de Python y de las herramientas.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pylint.d/
+.mypy_cache/
+.ruff_cache/
+
+# Cobertura y resultados de pruebas.
+.coverage
+.coverage.*
+htmlcov/
+test-results/
+playwright-report/
+
+# Logs locales (pueden traer preguntas de las personas).
+*.log

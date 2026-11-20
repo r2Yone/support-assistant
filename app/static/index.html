@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support Assistant - Mesa de ayuda</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6f8;
+      color: #1f2933;
+    }
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+    h1 { font-size: 1.5rem; margin: 0 0 4px; }
+    .intro { margin: 0 0 16px; color: #52606d; }
+    .conversation {
+      min-height: 240px;
+      padding: 12px;
+      background: #ffffff;
+      border: 1px solid #d9e2ec;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .message {
+      padding: 10px 12px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      max-width: 90%;
+    }
+    .message.user { align-self: flex-end; background: #dbeafe; }
+    .message.assistant { align-self: flex-start; background: #eef2f7; }
+    .message.error { align-self: flex-start; background: #fde2e2; color: #8a1c1c; }
+    .tools { margin-top: 6px; font-size: 0.8rem; color: #616e7c; }
+    .escalation {
+      margin: 12px 0 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #fff4d6;
+      border: 1px solid #f0c36d;
+      font-weight: 600;
+    }
+    form { display: flex; gap: 8px; margin-top: 12px; }
+    textarea {
+      flex: 1;
+      min-height: 64px;
+      padding: 10px;
+      font: inherit;
+      border: 1px solid #bcccdc;
+      border-radius: 8px;
+      resize: vertical;
+    }
+    button {
+      padding: 0 20px;
+      font: inherit;
+      color: #ffffff;
+      background: #2563eb;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:disabled { background: #93a8d6; cursor: wait; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Mesa de ayuda</h1>
+    <p class="intro">
+      Describe tu problema con tus palabras. Si no encuentro una solución, te
+      transfiero con el equipo que lo atiende.
+    </p>
+    <section class="conversation" data-testid="answer" aria-live="polite"></section>
+    <p class="escalation" data-testid="escalation" hidden></p>
+    <form id="ask-form">
+      <textarea data-testid="question" id="question"
+        placeholder="Describe tu problema (por ejemplo: no me puedo conectar a la VPN)"
+        aria-label="Describe tu problema" required></textarea>
+      <button type="submit" data-testid="send">Enviar</button>
+    </form>
+  </main>
+  <script>
+    (function () {
+      "use strict";
+      var form = document.getElementById("ask-form");
+      var input = document.querySelector('[data-testid="question"]');
+      var button = document.querySelector('[data-testid="send"]');
+      var conversation = document.querySelector('[data-testid="answer"]');
+      var escalation = document.querySelector('[data-testid="escalation"]');
+      // La página es la demo pública: nunca pide ni manda una clave.
+      // El historial vive solo en el navegador (en memoria); la API no guarda nada.
+      var history = [];
+
+      function addDetail(item, text) {
+        var detail = document.createElement("div");
+        detail.className = "tools";
+        detail.textContent = text;
+        item.appendChild(detail);
+      }
+
+      function addMessage(kind, text, tools, requestId) {
+        var item = document.createElement("div");
+        item.className = "message " + kind;
+        var body = document.createElement("div");
+        body.textContent = text;
+        item.appendChild(body);
+        if (tools !== undefined) {
+          addDetail(item, tools.length
+            ? "Herramientas usadas: " + tools.join(", ")
+            : "Herramientas usadas: ninguna");
+        }
+        // El folio que la persona da a soporte para encontrar su petición.
+        if (requestId) {
+          addDetail(item, "request_id: " + requestId);
+        }
+        conversation.appendChild(item);
+        item.scrollIntoView({ block: "end" });
+      }
+
+      function showEscalation(data) {
+        if (data.escalated && data.team) {
+          escalation.textContent = "Te transferimos con " + data.team +
+            ". Folio: " + data.request_id;
+          escalation.hidden = false;
+        } else {
+          escalation.textContent = "";
+          escalation.hidden = true;
+        }
+      }
+
+      function retryAfterSeconds(response) {
+        var seconds = parseInt(response.headers.get("Retry-After"), 10);
+        return seconds > 0 ? seconds : 1;
+      }
+
+      function errorMessage(status, response) {
+        if (status === 401) {
+          return "Esta página necesita el modo demo (PUBLIC_PAGE=true).";
+        }
+        if (status === 429) {
+          return "Demasiadas preguntas; espera " + retryAfterSeconds(response) +
+            " segundos.";
+        }
+        if (status === 503) {
+          return "La demo alcanzó su límite de hoy. Vuelve mañana.";
+        }
+        if (status === 422) {
+          return "La pregunta está vacía o es demasiado larga. Revísala e " +
+            "inténtalo de nuevo.";
+        }
+        return "No pude procesar tu pregunta en este momento. Inténtalo de nuevo.";
+      }
+
+      async function send(question) {
+        var response = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: question, history: history })
+        });
+        if (!response.ok) {
+          var failure = new Error(errorMessage(response.status, response));
+          failure.requestId = response.headers.get("X-Request-ID");
+          throw failure;
+        }
+        return response.json();
+      }
+
+      form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        var question = input.value.trim();
+        if (!question) {
+          addMessage("error", errorMessage(422));
+          return;
+        }
+        addMessage("user", question);
+        input.value = "";
+        button.disabled = true;
+        try {
+          var data = await send(question);
+          addMessage(
+            "assistant", data.answer, data.tools_used || [], data.request_id
+          );
+          showEscalation(data);
+          history.push({ role: "user", content: question });
+          history.push({ role: "assistant", content: data.answer });
+        } catch (error) {
+          var text = error instanceof TypeError
+            ? "No hay conexión con la mesa de ayuda. Inténtalo de nuevo."
+            : error.message;
+          addMessage("error", text, undefined, error.requestId);
+        } finally {
+          button.disabled = false;
+          input.focus();
+        }
+      });
+
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          form.requestSubmit();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

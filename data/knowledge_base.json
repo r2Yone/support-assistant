@@ -1,0 +1,127 @@
+{
+  "general_team": "Mesa de Servicio General",
+  "categories": [
+    {
+      "name": "Cuentas",
+      "team": "Mesa de Accesos",
+      "keywords": ["contraseña", "password", "usuario", "cuenta", "acceso", "bloqueada", "bloqueado", "verificación", "autenticación", "código", "mfa"]
+    },
+    {
+      "name": "Red",
+      "team": "Mesa de Redes",
+      "keywords": ["vpn", "wifi", "wi", "internet", "conexión", "conectar", "conecta", "conectarme", "inalámbrica"]
+    },
+    {
+      "name": "Correo",
+      "team": "Mesa de Colaboración",
+      "keywords": ["correo", "correos", "outlook", "email", "mail", "bandeja", "sincroniza"]
+    },
+    {
+      "name": "Impresoras",
+      "team": "Soporte en sitio",
+      "keywords": ["impresora", "imprime", "imprimir", "papel", "atasco", "atoró", "tóner"]
+    },
+    {
+      "name": "Software",
+      "team": "Mesa de Software",
+      "keywords": ["programa", "instalar", "instalación", "software", "aplicación", "licencia"]
+    },
+    {
+      "name": "Hardware",
+      "team": "Soporte en sitio",
+      "keywords": ["laptop", "computadora", "enciende", "prende", "monitor", "pantalla", "teclado", "mouse", "cargador", "batería"]
+    }
+  ],
+  "articles": [
+    {
+      "id": "KB-0001",
+      "title": "Conectarse a la VPN corporativa",
+      "category": "Red",
+      "keywords": ["vpn", "conectar", "conecta", "conectarme", "conexión", "remoto", "casa"],
+      "solution": "Abre el cliente de VPN, elige el servidor Corporativo e inicia sesión con tu usuario de red. Si falla, revisa que tu contraseña no haya vencido.",
+      "status": "vigente",
+      "updated": "2026-08-12"
+    },
+    {
+      "id": "KB-0002",
+      "title": "Sin conexión al Wi-Fi de la oficina",
+      "category": "Red",
+      "keywords": ["wifi", "wi", "fi", "inalámbrica", "internet", "oficina", "señal"],
+      "solution": "Olvida la red Oficina-Corp, vuelve a conectarte con tu usuario de red y reinicia el equipo si no obtiene dirección IP.",
+      "status": "vigente",
+      "updated": "2026-06-03"
+    },
+    {
+      "id": "KB-0003",
+      "title": "Restablecer la contraseña de red",
+      "category": "Cuentas",
+      "keywords": ["contraseña", "password", "olvidé", "olvidó", "olvidada", "recuperar", "vencida", "venció", "expiró", "restablecer", "bloqueada", "bloqueado"],
+      "solution": "Entra al portal de autoservicio, elige Olvidé mi contraseña y confirma con el código que llega a tu celular. La nueva contraseña tarda hasta 15 minutos en llegar a todos los sistemas.",
+      "status": "vigente",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "KB-0004",
+      "title": "Configurar la verificación en dos pasos",
+      "category": "Cuentas",
+      "keywords": ["verificación", "dos", "pasos", "autenticación", "código", "celular", "mfa", "qr"],
+      "solution": "Instala la aplicación de autenticación en tu celular, escanea el código QR del portal de seguridad y guarda los códigos de respaldo.",
+      "status": "vigente",
+      "updated": "2026-05-14"
+    },
+    {
+      "id": "KB-0005",
+      "title": "Outlook no sincroniza el correo",
+      "category": "Correo",
+      "keywords": ["outlook", "correo", "correos", "sincroniza", "llegan", "descarga", "bandeja"],
+      "solution": "Cierra Outlook, ábrelo en modo seguro con outlook.exe /safe y vuelve a abrirlo normal. Si sigue igual, recrea el perfil de correo desde el Panel de control.",
+      "status": "vigente",
+      "updated": "2026-07-30"
+    },
+    {
+      "id": "KB-0006",
+      "title": "La impresora no imprime",
+      "category": "Impresoras",
+      "keywords": ["impresora", "imprime", "imprimir", "cola", "documento", "documentos"],
+      "solution": "Revisa que la impresora esté encendida y en línea, cancela los trabajos atorados de la cola y vuelve a enviar el documento.",
+      "status": "vigente",
+      "updated": "2026-04-22"
+    },
+    {
+      "id": "KB-0007",
+      "title": "Atasco de papel",
+      "category": "Impresoras",
+      "keywords": ["papel", "atasco", "atoró", "atora", "atorado", "atorada", "hoja", "hojas"],
+      "solution": "Apaga la impresora, abre la bandeja indicada en la pantalla y retira el papel jalándolo con cuidado en la dirección de salida.",
+      "status": "vigente",
+      "updated": "2025-11-10"
+    },
+    {
+      "id": "KB-0008",
+      "title": "Solicitar la instalación de un programa",
+      "category": "Software",
+      "keywords": ["instalar", "instalación", "programa", "software", "aplicación", "solicitar"],
+      "solution": "Envía un correo a la mesa de ayuda con el nombre del programa y la aprobación de tu jefe.",
+      "status": "obsoleto",
+      "updated": "2024-02-01"
+    },
+    {
+      "id": "KB-0009",
+      "title": "La laptop no enciende",
+      "category": "Hardware",
+      "keywords": ["laptop", "computadora", "enciende", "prende", "arranca", "batería", "cargador"],
+      "solution": "Conecta el cargador original durante 15 minutos y mantén presionado el botón de encendido 20 segundos. Si no enciende, no la abras: pide que la revisen.",
+      "status": "vigente",
+      "updated": "2026-03-18"
+    },
+    {
+      "id": "KB-0010",
+      "title": "Segundo monitor sin imagen",
+      "category": "Hardware",
+      "keywords": ["monitor", "pantalla", "segundo", "imagen", "externo", "proyectar"],
+      "solution": "Revisa el cable y la entrada del monitor y presiona Windows + P para elegir Extender.",
+      "status": "vigente",
+      "updated": "2026-01-27"
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+# Pipeline de CI del Support Assistant (spec/04-production.md, «Pipeline de CI»).
+# Cuatro trabajos encadenados con needs: style -> unit -> e2e -> docker.
+# Render publica solo si los cuatro pasan (autoDeployTrigger: checksPass).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  style:
+    name: style (pylint, 88 columnas)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      # pylint no es parte de la aplicación: solo se instala aquí.
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pylint
+      - name: pylint
+        run: >-
+          python -m pylint app tests
+          --max-line-length=88
+          --fail-under=10
+          --disable=missing-function-docstring,redefined-outer-name,too-few-public-methods
+
+  unit:
+    name: unit (pruebas y BDD, cobertura >= 80 %)
+    needs: style
+    runs-on: ubuntu-latest
+    env:
+      # Nunca se lee un archivo de configuración en el CI.
+      ENV_FILE: none
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Pruebas con cobertura
+        run: python -m pytest -q tests --cov=app --cov-fail-under=80
+
+  e2e:
+    name: e2e (Playwright, modelo simulado)
+    needs: unit
+    runs-on: ubuntu-latest
+    env:
+      PORT: "8000"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      # pytest-playwright no es parte de la aplicación: solo se instala aquí.
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-playwright
+      - name: Instalar Chromium
+        run: python -m playwright install --with-deps chromium
+      # Modo demo (spec/05-demo.md), igual que la verificación de la fábrica: la
+      # página pregunta sin clave, con el límite por IP y el tope diario por omisión.
+      # Las pruebas ya no usan clave; API_KEYS solo deja un cliente con clave
+      # configurado, con un texto de ejemplo que no es un secreto ni una clave real.
+      - name: Arrancar el producto con el modelo simulado
+        env:
+          MODEL_PROVIDER: fake
+          ENV_FILE: none
+          PUBLIC_PAGE: "true"
+          API_KEYS: ci:ci-example-key-0123456789
+          RATE_LIMIT_PER_MINUTE: "1000"
+        run: |
+          nohup python -m uvicorn app.main:app --host 127.0.0.1 --port "$PORT" \
+            > product.log 2>&1 &
+          for attempt in $(seq 1 40); do
+            if curl --silent --fail "http://127.0.0.1:$PORT/health" > /dev/null; then
+              echo "El producto responde en el puerto $PORT"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "El producto no respondió en /health"
+          cat product.log
+          exit 1
+      - name: Pruebas de punta a punta
+        run: python -m pytest e2e -q -p no:cacheprovider --base-url "http://127.0.0.1:$PORT"
+      - name: Log del producto si algo falla
+        if: failure()
+        run: cat product.log || true
+
+  docker:
+    name: docker (build de la imagen)
+    needs: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: docker build
+        run: docker build --tag support-assistant:ci .
+      # Comprobación rápida: la imagen arranca sin .env, como usuario sin
+      # privilegios, y responde /health (con la configuración por omisión).
+      - name: La imagen arranca y responde /health
+        run: |
+          docker run --detach --name support-assistant-ci --publish 8000:8000 \
+            support-assistant:ci
+          test "$(docker exec support-assistant-ci id -u)" != "0"
+          docker exec support-assistant-ci sh -c 'test ! -e .env'
+          for attempt in $(seq 1 40); do
+            if curl --silent --fail http://127.0.0.1:8000/health > /dev/null; then
+              echo "La imagen responde /health"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          docker logs support-assistant-ci
+          exit 1
