@@ -30,6 +30,30 @@ METRICS_FIELDS = {
 }
 PRICES_FILE = Path(__file__).resolve().parent.parent / "data" / "model_prices.json"
 LARGE = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+WELCOME = (
+    "Bienvenido al sitio de soporte con IA. Describe tu problema y buscaremos una "
+    "solución, si no la encontramos, te transferimos con el equipo que puede ayudarte."
+)
+EXAMPLES = (
+    "No me puedo conectar a la VPN desde mi casa",
+    "Olvidé mi contraseña",
+    "Mi teclado tiene teclas que no funcionan",
+)
+EXTERNAL_RESOURCE = re.compile(r"(src|href)\s*=\s*[\"']?(https?:)?//", re.IGNORECASE)
+
+
+def _page(make_client):
+    """Devuelve el HTML de la página con los espacios seguidos reducidos a uno."""
+    response = make_client().get("/")
+    assert response.status_code == 200
+    return re.sub(r"\s+", " ", response.text)
+
+
+def _tag_with_test_id(page, test_id):
+    """Devuelve la etiqueta de apertura que lleva el ``data-testid`` indicado."""
+    match = re.search(rf"<[a-z]+[^>]*data-testid=\"{test_id}\"[^>]*>", page)
+    assert match, test_id
+    return match.group(0)
 
 
 def test_health_reports_ok_and_the_process_id(make_client):
@@ -173,3 +197,104 @@ def test_gateway_answers_through_the_api_with_the_routed_model_and_cache(
     assert stub.requests[0].headers["cf-aig-cache-ttl"] == "60"
     metrics = observed.client.get("/metrics").json()
     assert metrics["cost_usd"] == pytest.approx(expected_cost)
+
+
+def test_home_page_shows_the_exact_welcome_text_instead_of_the_old_one(make_client):
+    page = _page(make_client)
+    assert WELCOME in page
+    assert "Cuéntanos qué te pasa" not in page
+    assert "Describe tu problema con tus palabras" not in page
+
+
+def test_home_page_header_has_the_product_name_an_inline_icon_and_the_welcome(
+    make_client,
+):
+    page = _page(make_client)
+    header = re.search(r"<header[^>]*>(.*?)</header>", page)
+    assert header, "the page has no <header>"
+    assert "Support Assistant" in header.group(1)
+    assert "<svg" in header.group(1)
+    assert WELCOME in header.group(1)
+
+
+def test_home_page_offers_three_clickable_examples_with_their_exact_texts(
+    make_client,
+):
+    page = _page(make_client)
+    assert page.count('data-testid="example"') == 3
+    for example in EXAMPLES:
+        button = rf"<button[^>]*data-testid=\"example\"[^>]*> ?{example} ?</button>"
+        assert re.search(button, page), example
+
+
+def test_home_page_keeps_a_single_conversation_and_a_single_transfer_card(
+    make_client,
+):
+    markup = re.sub(r"<script>.*?</script>", "", _page(make_client))
+    for test_id in ("question", "send", "answer", "escalation"):
+        assert markup.count(f'data-testid="{test_id}"') == 1, test_id
+
+
+def test_home_page_highlights_the_article_id_as_a_tag(make_client):
+    page = _page(make_client)
+    assert re.search(r"KB-(\\d|\[0-9\])\{4\}", page), "no KB-xxxx pattern"
+    assert re.search(r"\.tag\b", page), "no .tag style for the article id"
+    assert "createElement" in page
+    assert "innerHTML" not in page
+
+
+def test_home_page_defines_its_design_with_css_variables_and_the_system_font(
+    make_client,
+):
+    page = _page(make_client)
+    assert re.search(r":root ?\{[^}]*--color-", page), "no --color-* in :root"
+    assert "var(--color-" in page
+    assert "system-ui" in page
+
+
+def test_home_page_switches_to_dark_mode_and_respects_reduced_motion(make_client):
+    page = _page(make_client)
+    dark = re.search(r"prefers-color-scheme: ?dark\) ?\{[^@]*--color-", page)
+    assert dark, "dark mode must redefine the --color-* variables"
+    assert re.search(r"prefers-reduced-motion: ?reduce", page)
+
+
+def test_home_page_fits_a_phone_and_keeps_the_chat_centered_with_the_form_below(
+    make_client,
+):
+    page = _page(make_client)
+    assert 'name="viewport"' in page
+    assert re.search(r"max-width: ?760px", page)
+    assert re.search(r"position: ?(sticky|fixed)", page)
+
+
+def test_home_page_has_visible_focus_and_labelled_controls(make_client):
+    page = _page(make_client)
+    assert ":focus-visible" in page
+    for test_id in ("question", "send"):
+        assert "aria-label=" in _tag_with_test_id(page, test_id), test_id
+
+
+def test_home_page_lets_the_script_report_an_empty_question(make_client):
+    page = _page(make_client)
+    question = _tag_with_test_id(page, "question")
+    assert re.search(r"\brequired\b", question) is None
+    assert "La pregunta está vacía" in page
+
+
+def test_home_page_shows_a_waiting_indicator_and_sends_with_enter(make_client):
+    page = _page(make_client)
+    assert "Buscando una solución…" in page
+    assert re.search(r"\.disabled ?= ?true|setAttribute\(\"disabled\"", page)
+    assert "finally" in page
+    assert '"Enter"' in page
+    assert "shiftKey" in page
+
+
+def test_home_page_loads_nothing_from_other_sites(make_client):
+    page = _page(make_client)
+    assert EXTERNAL_RESOURCE.search(page) is None
+    assert "@import" not in page
+    assert re.search(r"url\( ?[\"']?(https?:)?//", page) is None
+    assert re.search(r"<script[^>]*\bsrc=", page) is None
+    assert re.search(r"<link[^>]*stylesheet", page) is None

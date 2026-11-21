@@ -1,5 +1,113 @@
 # Support Assistant
 
+## Requisitos y primeros pasos
+
+Esta sección es para quien descarga el repositorio y lo corre con sus propias cuentas
+y claves.
+
+### Requisitos
+
+- **Git**, para clonar el repositorio.
+- **Python 3.12**, o **Docker** en lugar de Python (ver «Con Docker»).
+
+### Cuentas
+
+| Cuenta | ¿Obligatoria? | Qué se necesita |
+| --- | --- | --- |
+| Cloudflare | Solo para el modelo real | El **Account ID**, un AI Gateway creado (su nombre va en `CF_GATEWAY_ID`) y un token de API con los permisos **Workers AI: Read** y **AI Gateway: Run** |
+| LangSmith | Opcional | Una API key, para ver las trazas |
+| Render | Opcional | Una cuenta, solo para publicar el servicio |
+
+### Pasos
+
+Los comandos se corren desde la carpeta del producto (`product/`).
+
+Windows (PowerShell):
+
+```powershell
+git clone <url-del-repositorio>
+cd <carpeta-del-repositorio>\product
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+# Completa los valores de .env (ver «El .env mínimo»)
+uvicorn app.main:app --port 8000
+```
+
+macOS/Linux:
+
+```bash
+git clone <url-del-repositorio>
+cd <carpeta-del-repositorio>/product
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# Completa los valores de .env (ver «El .env mínimo»)
+uvicorn app.main:app --port 8000
+```
+
+Después abre `http://127.0.0.1:8000` en el navegador. Las variables están descritas en
+«Variables de entorno» y en `.env.example`.
+
+### El `.env` mínimo
+
+Para el modelo real con la página de demo (los valores entre `< >` son de ejemplo:
+cámbialos por los tuyos y nunca los subas al repositorio):
+
+```bash
+MODEL_PROVIDER=gateway
+CF_ACCOUNT_ID=<tu-account-id>
+CF_GATEWAY_ID=<tu-gateway>
+CF_API_TOKEN=<tu-token>
+API_KEYS=local:<tu-clave-de-32-caracteres>
+PUBLIC_PAGE=true
+```
+
+La clave de `API_KEYS` se genera como explica «Crear una clave».
+
+### Probarlo sin ninguna cuenta
+
+Basta con esta línea en `.env`; responde el modelo simulado (`MODEL_PROVIDER=fake`, por
+omisión), sin red y sin gastar cuota:
+
+```bash
+PUBLIC_PAGE=true
+```
+
+### Con Docker
+
+```bash
+docker build -t support-assistant .
+docker run -p 8000:8000 --env-file .env support-assistant
+```
+
+Docker lee el `.env` en tu máquina: el `.env` nunca entra en la imagen (lo excluye
+`.dockerignore`).
+
+### Para correr las pruebas
+
+Las herramientas de prueba no van en `requirements.txt` porque la imagen de Docker no
+las necesita; se instalan aparte:
+
+```bash
+pip install pytest-playwright pylint
+python -m playwright install chromium
+pytest tests
+```
+
+Las de punta a punta necesitan el producto corriendo con `PUBLIC_PAGE=true`; en otra
+terminal:
+
+```bash
+pytest e2e --base-url http://127.0.0.1:8000
+```
+
+Los comandos completos que corre el CI están en «Pruebas».
+
+## Qué es
+
 Primer nivel de la mesa de ayuda de la empresa. La persona describe su problema con
 sus palabras en una página web; un agente lo clasifica, busca una solución vigente en
 la base de conocimiento (`data/knowledge_base.json`) y, si no la encuentra, indica con
@@ -26,19 +134,20 @@ qué equipo humano se transfiere.
 
 La arquitectura y sus decisiones están en `doc/architecture.md` y `doc/adr/`.
 
-## Cómo correrlo
+La página no pide clave: para usarla enciende el modo demo (`PUBLIC_PAGE=true` en
+`product/.env`, ver «Modo demo»). Las integraciones preguntan con una clave de
+`API_KEYS` (ver «Claves de acceso»).
 
-Desde esta carpeta (`product/`), con las dependencias de `requirements.txt` instaladas:
+### La página
 
-```bash
-pip install -r requirements.txt
-uvicorn app.main:app --port 8000
-```
-
-Después abre `http://127.0.0.1:8000/` en el navegador. Las variables están descritas
-abajo y en `.env.example`. La página no pide clave: para usarla enciende el modo demo
-(`PUBLIC_PAGE=true` en `product/.env`, ver «Modo demo»). Las integraciones preguntan
-con una clave de `API_KEYS` (ver «Claves de acceso»).
+`GET /` es una página de chat de soporte en un solo archivo (`app/static/index.html`,
+con su CSS y su JavaScript, sin recursos de otros sitios y con la tipografía del
+sistema). Muestra el texto de bienvenida, tres ejemplos que se pueden pulsar para
+escribirlos en el campo de pregunta, las burbujas de la conversación (la persona a la
+derecha, el asistente a la izquierda, con el id del artículo como etiqueta), el folio
+de cada respuesta y la tarjeta de transferencia. Enter envía y Shift+Enter hace un
+salto de línea; mientras espera muestra «Buscando una solución…». Tiene modo oscuro
+automático, respeta `prefers-reduced-motion` y no guarda nada en el navegador.
 
 ## Modo demo
 
@@ -474,12 +583,8 @@ Los escenarios Gherkin están en `tests/features/` y las pruebas unitarias en `t
 Las pruebas de `e2e/` abren la página en Chromium contra el producto ya arrancado en
 modo demo (`PUBLIC_PAGE=true`). No usan ninguna clave: la página pregunta sin ella.
 
-1. Instala pytest-playwright y el navegador (no son parte de la aplicación):
-
-   ```bash
-   pip install pytest-playwright
-   python -m playwright install chromium
-   ```
+1. Instala pytest-playwright y el navegador como explica «Para correr las pruebas»
+   (no son parte de la aplicación).
 
 2. En una terminal, arranca el producto con el modelo simulado y el modo demo:
 
@@ -517,12 +622,9 @@ docker run --rm -p 8000:8000 -e API_KEYS="local:local-example-key-0123456789" \
 ```
 
 La imagen tiene `ENV_FILE=none` y no lleva `.env` (lo excluye `.dockerignore`): la
-configuración llega solo por el entorno. Para usar tu `product/.env` local, pásalo a
-Docker, que lo lee en tu máquina y no lo copia a la imagen:
-
-```bash
-docker run --rm -p 8000:8000 --env-file .env support-assistant
-```
+configuración llega solo por el entorno. Para usar tu `product/.env` local, pásalo
+con `--env-file` como explica «Con Docker»: Docker lo lee en tu máquina y no lo copia
+a la imagen.
 
 Escucha en el puerto de `PORT` (8000 si no está definida) y responde `GET /health`.
 Sin `API_KEYS` arranca, pero nadie puede preguntar. Con `ENVIRONMENT=production`

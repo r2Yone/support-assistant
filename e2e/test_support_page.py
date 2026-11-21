@@ -1,7 +1,8 @@
 """Pruebas de punta a punta de la página de la mesa de ayuda.
 
 Cubren la sección «Pruebas de punta a punta» de ``spec/03-costs.md``,
-``spec/04-production.md`` y ``spec/05-demo.md`` con el producto corriendo con
+``spec/04-production.md``, ``spec/05-demo.md`` y ``spec/07-page.md`` con el
+producto corriendo con
 el modelo simulado y en modo demo (``PUBLIC_PAGE=true``). La URL base la pone
 la verificación; la página ya no pide clave.
 
@@ -22,6 +23,16 @@ SECOND_QUESTION = "Outlook no sincroniza el correo"
 SECOND_ARTICLE_ID = "KB-0005"
 SPANISH_EMPTY_ERROR = re.compile(r"pregunta.*vac[ií]a", re.IGNORECASE)
 ASK_URL = re.compile(r"/ask$")
+WELCOME_TEXT = (
+    "Bienvenido al sitio de soporte con IA. Describe tu problema y buscaremos "
+    "una solución, si no la encontramos, te transferimos con el equipo que "
+    "puede ayudarte."
+)
+EXAMPLE_QUESTIONS = [
+    "No me puedo conectar a la VPN desde mi casa",
+    "Olvidé mi contraseña",
+    "Mi teclado tiene teclas que no funcionan",
+]
 
 
 def ask(page: Page, question: str) -> dict:
@@ -122,3 +133,25 @@ def test_page_without_key_field_answers_a_question(page: Page):
     assert page.evaluate("window.sessionStorage.length") == 0, (
         "La página guardó datos en sessionStorage"
     )
+
+
+def test_opening_the_page_shows_the_welcome_text(page: Page):
+    """Al abrir la página se ve el texto de bienvenida exacto."""
+    page.goto("/")
+
+    expect(page.get_by_text(WELCOME_TEXT, exact=True)).to_be_visible()
+
+
+def test_clicking_an_example_writes_its_text_in_the_question(page: Page):
+    """Pulsar cada ejemplo escribe su texto en el campo de pregunta.
+
+    No envía nada: no gasta peticiones del límite por IP.
+    """
+    page.goto("/")
+    examples = page.get_by_test_id("example")
+    expect(examples).to_have_text(EXAMPLE_QUESTIONS)
+
+    question = page.get_by_test_id("question")
+    for text in EXAMPLE_QUESTIONS:
+        examples.filter(has_text=text).click()
+        expect(question).to_have_value(text)

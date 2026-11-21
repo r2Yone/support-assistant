@@ -1,15 +1,16 @@
 # Arquitectura del Support Assistant
 
 El Support Assistant es el primer nivel de la mesa de ayuda. La persona describe su problema
-en una página web; un agente lo clasifica, busca una solución vigente en la base de
-conocimiento y, si no la encuentra, indica a qué equipo humano se transfiere. Cada petición
-lleva un folio (`request_id`) que permite reconstruir en el log qué pasó con ella, y cada
-respuesta dice qué modelo usó y cuánto costó. Las integraciones entran con una clave de
+en una página web con forma de chat; un agente lo clasifica, busca una solución vigente en la
+base de conocimiento y, si no la encuentra, indica a qué equipo humano se transfiere. Cada
+petición lleva un folio (`request_id`) que permite reconstruir en el log qué pasó con ella, y
+cada respuesta dice qué modelo usó y cuánto costó. Las integraciones entran con una clave de
 cliente y un límite por minuto. Con el modo demo (`PUBLIC_PAGE=true`) la página se usa sin
 clave, como el cliente `public`, con un límite por IP y un tope de gasto diario. Con
 LangSmith encendido, cada corrida queda como traza con sus tokens, su costo y etiquetas
-para filtrar, sin mandar el texto de la conversación en producción. El servicio se publica
-en Render (`support-assistant`) solo si el pipeline de CI pasa.
+para filtrar, sin mandar el texto de la conversación en producción. La página vive en un
+solo archivo, sin recursos de otros sitios, con modo oscuro y accesible. El servicio se
+publica en Render (`support-assistant`) solo si el pipeline de CI pasa.
 
 ## Componentes
 
@@ -30,7 +31,7 @@ en Render (`support-assistant`) solo si el pipeline de CI pasa.
 | `app/observability.py` | Reloj, folio, log JSON (con `client`, nunca la IP) y middleware de petición y error |
 | `app/metrics.py` | Métricas del proceso (latencia, errores, tokens, outcomes, costo, meta p95) |
 | `app/tracing.py` | Trazas opcionales en LangSmith: proyecto propio, `hide_*` como funciones (solo sale `usage_metadata`), `usage_metadata` por llamada y anotación de la corrida que nunca lanza |
-| `app/static/index.html` | Página web sin clave: historial en el navegador, folio visible y mensajes de 401, 429 y 503 |
+| `app/static/index.html` | Página de chat sin clave en un solo archivo: encabezado con SVG y bienvenida, burbujas, etiqueta `KB-xxxx`, tarjeta de transferencia, tres ejemplos, indicador de espera, campo fijo abajo, variables CSS, modo oscuro y movimiento reducido; historial en memoria y mensajes de 401, 429 y 503 |
 | `data/knowledge_base.json` | Categorías, equipos y artículos (copia de `spec/`) |
 | `data/model_prices.json` | Precios por modelo en USD por millón de tokens (copia de `spec/`) |
 | `.env.example` | Todas las variables de `spec/` (salvo `ENV_FILE`) con su valor por omisión y los secretos vacíos |
@@ -38,15 +39,25 @@ en Render (`support-assistant`) solo si el pipeline de CI pasa.
 | `.github/workflows/ci.yml` | Pipeline `style` -> `unit` -> `e2e` (con `PUBLIC_PAGE=true`) -> `docker` |
 | `render.yaml` | Blueprint del servicio `support-assistant` con `autoDeployTrigger: checksPass`, el modo demo y las trazas (`LANGSMITH_TRACING`, `LANGSMITH_PROJECT`, `SLO_P95_MS`) |
 | `scripts/smoke.py` | Prueba de humo: `/health`, `401` con clave equivocada y `200` con `SMOKE_API_KEY` |
+| `README.md` | Empieza con «Requisitos y primeros pasos»: requisitos, cuentas, pasos para Windows y macOS/Linux, `.env` mínimo, Docker y pruebas |
 | `doc/compliance-checklist.md` | Reglas de compliance, dónde están, cómo se comprueban y decisiones aceptadas |
 
 ## Diagrama
 
 ```mermaid
 flowchart LR
-    user[Empleado] --> page[index.html sin clave]
+    user[Empleado] --> page
+    subgraph page[index.html: un solo archivo, sin recursos externos]
+        header[Encabezado: SVG, Support Assistant, bienvenida]
+        examples[3 ejemplos data-testid=example]
+        chat[answer: burbujas, etiqueta KB-xxxx, request_id]
+        typing[Buscando una solucion...]
+        esc[escalation: tarjeta con equipo y folio]
+        composer[question + send fijos abajo, Enter / Shift+Enter]
+        examples -- "escribe el texto, no envia" --> composer
+    end
     integ[Integración] -- "POST /ask + X-API-Key" --> mw
-    page -- "POST /ask sin clave" --> mw[observability.py middleware]
+    composer -- "POST /ask sin clave, historial en memoria" --> mw[observability.py middleware]
     mw -- "request_id" --> sec[security.py middleware]
     sec -- "401 clave invalida o sin modo demo" --> mw
     sec -- "client con clave" --> limiter[rate_limit.py por cliente]
@@ -54,6 +65,7 @@ flowchart LR
     limiter -- "429 + Retry-After" --> mw
     iplimit -- "429 + Retry-After" --> mw
     sec -- "client o public" --> api[main.py FastAPI]
+    api -- "GET /" --> page
     api -- "public: tope alcanzado?" --> budget[budget.py DailyBudget]
     budget -- "503 + budget_exhausted una vez al dia" --> mw
     api -- "pregunta, historial, client" --> agent[agent.py bucle con tope]
@@ -73,15 +85,14 @@ flowchart LR
     mw -- "request con client / error" --> log
     mw -- "latencia, status" --> metrics[metrics.py meta p95 4000 ms]
     api -- "tokens, outcome, cost_usd" --> metrics
-    agent -. "agent_run: request_id, client, outcome, cost_usd + etiquetas" .-> tr[tracing.py]
-    agent -. "model_complete llm: ls_provider, ls_model_name, usage_metadata" .-> tr
-    tr -. "hide_inputs / hide_outputs: solo usage_metadata" .-> bg[Client LangSmith hilo en segundo plano]
-    bg -. "proyecto LANGSMITH_PROJECT" .-> ls[(LangSmith)]
+    agent -. "agent_run + llm: metadatos, etiquetas, usage_metadata" .-> tr[tracing.py]
+    tr -. "solo usage_metadata, segundo plano" .-> ls[(LangSmith)]
     env[(entorno / .env via ENV_FILE)] --> config[config.py Settings]
     config -- "ENVIRONMENT=production" --> comp[compliance.py]
     config --> api
     config --> tr
-    api -- "answer, outcome, model, route, cost_usd" --> page
+    api -- "answer, request_id, escalated, team o error" --> chat
+    api -- "escalated + team" --> esc
     ops[Soporte] -- "GET /metrics + X-API-Key" --> sec
 
     subgraph publicacion[Publicación]
@@ -100,8 +111,11 @@ flowchart LR
 2. Con `LANGSMITH_TRACING=true` y clave, `tracing.configure()` crea el cliente de
    LangSmith con las funciones de ocultar y el proyecto `LANGSMITH_PROJECT`; sin clave no
    se importa `langsmith`.
-3. La página manda la pregunta y el historial sin clave; una integración manda además
-   `X-API-Key`. El middleware de observabilidad asigna el folio.
+3. `GET /` sirve `index.html`: encabezado, bienvenida y tres ejemplos, sin pedir nada a
+   otros sitios. Pulsar un ejemplo escribe su texto en el campo; Enter o Enviar mandan la
+   pregunta y el historial sin clave (una pregunta vacía se rechaza en la página). Se
+   ocultan los ejemplos, se desactiva el botón y aparece «Buscando una solución…». Una
+   integración manda además `X-API-Key`. El middleware de observabilidad asigna el folio.
 4. El middleware de seguridad: con `X-API-Key`, identifica al cliente (`401` si no es
    válida) y revisa su límite por minuto. Sin clave, `401` salvo en modo demo; en modo
    demo revisa el límite por IP (`429` con `Retry-After`) y marca la petición como
@@ -120,8 +134,10 @@ flowchart LR
    envían en segundo plano: si LangSmith falla, la respuesta no cambia.
 9. Si el modelo real falla: evento `error` con el tipo y `502 {"detail": "model
    unavailable", "request_id"}`, sin reintentos.
-10. La página pinta la respuesta con `textContent`, el `request_id`, el aviso
-    `escalation` si hubo transferencia, o el mensaje de 401, 429 o 503.
+10. La página quita el indicador y pinta, con `textContent`, la burbuja del asistente con
+    la etiqueta `KB-xxxx` y el `request_id` en pequeño; la tarjeta `escalation` con equipo
+    y folio si hubo transferencia, o la burbuja de error de 401, 429 o 503. El botón se
+    reactiva y el foco vuelve al campo.
 
 ## Decisiones
 
@@ -143,3 +159,5 @@ flowchart LR
 - [0016 Llamadas al modelo como trazas `llm` con tokens y texto oculto](adr/0016-llm-runs-with-usage-and-hidden-text.md)
 - [0017 Metadatos y etiquetas de `agent_run`](adr/0017-run-outcome-metadata-and-tags.md)
 - [0018 Trazas en segundo plano, proyecto propio y meta p95 de 4 s](adr/0018-background-tracing-own-project-and-4s-slo.md)
+- [0019 Página en un solo archivo, sin recursos de otros sitios](adr/0019-single-file-page-without-external-resources.md)
+- [0020 Los `data-testid` son el contrato de la página; el chat es accesible](adr/0020-page-test-ids-as-contract-and-accessible-chat.md)

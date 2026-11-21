@@ -3,110 +3,333 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>Support Assistant - Mesa de ayuda</title>
   <style>
+    /* Diseño: todo se define con variables; el modo oscuro solo las redefine. */
+    :root {
+      --color-bg: #f3f4f6;
+      --color-surface: #ffffff;
+      --color-border: #d1d5db;
+      --color-text: #1f2937;
+      --color-muted: #4b5563;
+      --color-accent: #1d4ed8;
+      --color-on-accent: #ffffff;
+      --color-user: #dbeafe;
+      --color-user-text: #1e293b;
+      --color-assistant: #ffffff;
+      --color-assistant-text: #1f2937;
+      --color-tag: #e0e7ff;
+      --color-tag-text: #1e3a8a;
+      --color-error: #fef2f2;
+      --color-error-text: #991b1b;
+      --color-escalation: #fffbeb;
+      --color-escalation-border: #b45309;
+      --color-escalation-text: #78350f;
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --font-size: 1rem;
+      --font-size-small: 0.8rem;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --radius: 16px;
+      --radius-small: 8px;
+      --shadow: 0 1px 3px rgba(15, 23, 42, 0.12), 0 1px 2px rgba(15, 23, 42, 0.08);
+      --transition: 150ms ease;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --color-bg: #0f172a;
+        --color-surface: #1e293b;
+        --color-border: #475569;
+        --color-text: #e5e7eb;
+        --color-muted: #a3aab5;
+        --color-accent: #60a5fa;
+        --color-on-accent: #0f172a;
+        --color-user: #1e3a8a;
+        --color-user-text: #f1f5f9;
+        --color-assistant: #1e293b;
+        --color-assistant-text: #e5e7eb;
+        --color-tag: #312e81;
+        --color-tag-text: #e0e7ff;
+        --color-error: #450a0a;
+        --color-error-text: #fecaca;
+        --color-escalation: #422006;
+        --color-escalation-border: #f59e0b;
+        --color-escalation-text: #fde68a;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      }
+    }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      background: #f4f6f8;
-      color: #1f2933;
+      font-family: var(--font);
+      font-size: var(--font-size);
+      line-height: 1.5;
+      background: var(--color-bg);
+      color: var(--color-text);
     }
     main {
-      max-width: 760px;
-      margin: 0 auto;
-      padding: 24px 16px;
-    }
-    h1 { font-size: 1.5rem; margin: 0 0 4px; }
-    .intro { margin: 0 0 16px; color: #52606d; }
-    .conversation {
-      min-height: 240px;
-      padding: 12px;
-      background: #ffffff;
-      border: 1px solid #d9e2ec;
-      border-radius: 8px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      max-width: 760px;
+      height: 100vh;
+      height: 100dvh;
+      margin: 0 auto;
+      background: var(--color-bg);
+    }
+    header {
+      display: flex;
+      gap: var(--space-3);
+      align-items: flex-start;
+      padding: var(--space-4);
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .logo {
+      flex: none;
+      width: 40px;
+      height: 40px;
+      padding: var(--space-2);
+      border-radius: 50%;
+      color: var(--color-on-accent);
+      background: var(--color-accent);
+    }
+    .logo svg { display: block; width: 24px; height: 24px; }
+    h1 { margin: 0; font-size: 1.25rem; }
+    .welcome { margin: var(--space-1) 0 0; color: var(--color-muted); }
+    .scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-4);
+    }
+    .examples { margin-bottom: var(--space-4); }
+    .examples p { margin: 0 0 var(--space-2); color: var(--color-muted); }
+    .examples ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .example {
+      padding: var(--space-2) var(--space-3);
+      font: inherit;
+      text-align: left;
+      color: var(--color-text);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: border-color var(--transition);
+    }
+    .example:hover { border-color: var(--color-accent); }
+    .conversation {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
     }
     .message {
-      padding: 10px 12px;
-      border-radius: 8px;
+      max-width: 85%;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
       white-space: pre-wrap;
-      max-width: 90%;
+      overflow-wrap: anywhere;
     }
-    .message.user { align-self: flex-end; background: #dbeafe; }
-    .message.assistant { align-self: flex-start; background: #eef2f7; }
-    .message.error { align-self: flex-start; background: #fde2e2; color: #8a1c1c; }
-    .tools { margin-top: 6px; font-size: 0.8rem; color: #616e7c; }
-    .escalation {
-      margin: 12px 0 0;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: #fff4d6;
-      border: 1px solid #f0c36d;
+    .message.user {
+      align-self: flex-end;
+      color: var(--color-user-text);
+      background: var(--color-user);
+      border-bottom-right-radius: var(--space-1);
+    }
+    .message.assistant {
+      align-self: flex-start;
+      color: var(--color-assistant-text);
+      background: var(--color-assistant);
+      border: 1px solid var(--color-border);
+      border-bottom-left-radius: var(--space-1);
+    }
+    .message.error {
+      align-self: flex-start;
+      color: var(--color-error-text);
+      background: var(--color-error);
+      border: 1px solid var(--color-error-text);
+    }
+    .tag {
+      display: inline-block;
+      margin-bottom: var(--space-2);
+      padding: 0 var(--space-2);
+      font-size: var(--font-size-small);
       font-weight: 600;
+      color: var(--color-tag-text);
+      background: var(--color-tag);
+      border-radius: var(--radius-small);
     }
-    form { display: flex; gap: 8px; margin-top: 12px; }
+    .detail {
+      margin-top: var(--space-2);
+      font-size: var(--font-size-small);
+      color: var(--color-muted);
+    }
+    .message.error .detail { color: var(--color-error-text); }
+    .typing {
+      align-self: flex-start;
+      padding: var(--space-2) var(--space-4);
+      color: var(--color-muted);
+      font-style: italic;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .escalation {
+      margin-top: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      color: var(--color-escalation-text);
+      background: var(--color-escalation);
+      border: 1px solid var(--color-escalation-border);
+      border-left-width: 6px;
+      border-radius: var(--radius-small);
+      box-shadow: var(--shadow);
+    }
+    .escalation strong { font-size: 1.05rem; }
+    form {
+      position: sticky;
+      bottom: 0;
+      display: flex;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-surface);
+      border-top: 1px solid var(--color-border);
+    }
     textarea {
       flex: 1;
-      min-height: 64px;
-      padding: 10px;
+      min-width: 0;
+      min-height: 48px;
+      max-height: 160px;
+      padding: var(--space-3);
       font: inherit;
-      border: 1px solid #bcccdc;
-      border-radius: 8px;
+      color: var(--color-text);
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-small);
       resize: vertical;
     }
-    button {
-      padding: 0 20px;
+    textarea::placeholder { color: var(--color-muted); }
+    .send {
+      padding: 0 var(--space-5);
       font: inherit;
-      color: #ffffff;
-      background: #2563eb;
+      font-weight: 600;
+      color: var(--color-on-accent);
+      background: var(--color-accent);
       border: none;
-      border-radius: 8px;
+      border-radius: var(--radius-small);
       cursor: pointer;
+      transition: opacity var(--transition);
     }
-    button:disabled { background: #93a8d6; cursor: wait; }
+    .send:disabled { opacity: 0.6; cursor: wait; }
+    :focus-visible {
+      outline: 2px solid var(--color-accent);
+      outline-offset: 2px;
+    }
+    @media (max-width: 480px) {
+      header { padding: var(--space-3); }
+      .scroll { padding: var(--space-3); }
+      form { padding: var(--space-2) var(--space-3); }
+      .message { max-width: 92%; }
+      .send { padding: 0 var(--space-4); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body>
   <main>
-    <h1>Mesa de ayuda</h1>
-    <p class="intro">
-      Describe tu problema con tus palabras. Si no encuentro una solución, te
-      transfiero con el equipo que lo atiende.
-    </p>
-    <section class="conversation" data-testid="answer" aria-live="polite"></section>
-    <p class="escalation" data-testid="escalation" hidden></p>
+    <header>
+      <div class="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path>
+          <path d="M9 10h6M9 14h4"></path>
+        </svg>
+      </div>
+      <div>
+        <h1>Support Assistant</h1>
+        <p class="welcome">Bienvenido al sitio de soporte con IA. Describe tu problema y buscaremos una solución, si no la encontramos, te transferimos con el equipo que puede ayudarte.</p>
+      </div>
+    </header>
+    <div class="scroll" id="scroll">
+      <div class="examples" id="examples">
+        <p>Ejemplos para empezar:</p>
+        <ul>
+          <li><button type="button" class="example" data-testid="example">No me puedo conectar a la VPN desde mi casa</button></li>
+          <li><button type="button" class="example" data-testid="example">Olvidé mi contraseña</button></li>
+          <li><button type="button" class="example" data-testid="example">Mi teclado tiene teclas que no funcionan</button></li>
+        </ul>
+      </div>
+      <section class="conversation" data-testid="answer" aria-live="polite"
+        aria-label="Conversación"></section>
+      <div class="escalation" data-testid="escalation" role="status" hidden></div>
+    </div>
     <form id="ask-form">
-      <textarea data-testid="question" id="question"
+      <textarea data-testid="question" id="question" rows="2"
         placeholder="Describe tu problema (por ejemplo: no me puedo conectar a la VPN)"
-        aria-label="Describe tu problema" required></textarea>
-      <button type="submit" data-testid="send">Enviar</button>
+        aria-label="Describe tu problema"></textarea>
+      <button type="submit" class="send" data-testid="send"
+        aria-label="Enviar pregunta">Enviar</button>
     </form>
   </main>
   <script>
     (function () {
       "use strict";
       var form = document.getElementById("ask-form");
-      var input = document.querySelector('[data-testid="question"]');
+      var input = document.getElementById("question");
       var button = document.querySelector('[data-testid="send"]');
       var conversation = document.querySelector('[data-testid="answer"]');
       var escalation = document.querySelector('[data-testid="escalation"]');
+      var examples = document.getElementById("examples");
+      var ARTICLE_ID = /KB-\d{4}/;
       // La página es la demo pública: nunca pide ni manda una clave.
       // El historial vive solo en el navegador (en memoria); la API no guarda nada.
       var history = [];
 
       function addDetail(item, text) {
         var detail = document.createElement("div");
-        detail.className = "tools";
+        detail.className = "detail";
         detail.textContent = text;
         item.appendChild(detail);
+      }
+
+      function addArticleTag(item, text) {
+        // Etiqueta del artículo: se arma con createElement, nunca con HTML a mano.
+        var match = ARTICLE_ID.exec(text || "");
+        if (!match) {
+          return;
+        }
+        var tag = document.createElement("span");
+        tag.className = "tag";
+        tag.textContent = match[0];
+        item.appendChild(tag);
       }
 
       function addMessage(kind, text, tools, requestId) {
         var item = document.createElement("div");
         item.className = "message " + kind;
+        if (kind === "assistant") {
+          addArticleTag(item, text);
+        }
         var body = document.createElement("div");
         body.textContent = text;
         item.appendChild(body);
@@ -120,16 +343,35 @@
           addDetail(item, "request_id: " + requestId);
         }
         conversation.appendChild(item);
-        item.scrollIntoView({ block: "end" });
+        item.scrollIntoView({ block: "end", behavior: "auto" });
+      }
+
+      function showTyping() {
+        var typing = document.createElement("div");
+        typing.className = "typing";
+        typing.setAttribute("role", "status");
+        typing.textContent = "Buscando una solución…";
+        conversation.appendChild(typing);
+        typing.scrollIntoView({ block: "end", behavior: "auto" });
+        return typing;
+      }
+
+      function addStrong(parent, text) {
+        var strong = document.createElement("strong");
+        strong.textContent = text;
+        parent.appendChild(strong);
       }
 
       function showEscalation(data) {
+        escalation.textContent = "";
         if (data.escalated && data.team) {
-          escalation.textContent = "Te transferimos con " + data.team +
-            ". Folio: " + data.request_id;
+          escalation.appendChild(document.createTextNode("Te transferimos con "));
+          addStrong(escalation, data.team);
+          escalation.appendChild(document.createTextNode(". Folio: "));
+          addStrong(escalation, data.request_id);
           escalation.hidden = false;
+          escalation.scrollIntoView({ block: "end", behavior: "auto" });
         } else {
-          escalation.textContent = "";
           escalation.hidden = true;
         }
       }
@@ -173,16 +415,22 @@
 
       form.addEventListener("submit", async function (event) {
         event.preventDefault();
+        if (button.disabled) {
+          return;
+        }
         var question = input.value.trim();
         if (!question) {
           addMessage("error", errorMessage(422));
           return;
         }
+        examples.hidden = true;
         addMessage("user", question);
         input.value = "";
         button.disabled = true;
+        var typing = showTyping();
         try {
           var data = await send(question);
+          typing.remove();
           addMessage(
             "assistant", data.answer, data.tools_used || [], data.request_id
           );
@@ -190,22 +438,34 @@
           history.push({ role: "user", content: question });
           history.push({ role: "assistant", content: data.answer });
         } catch (error) {
+          typing.remove();
           var text = error instanceof TypeError
             ? "No hay conexión con la mesa de ayuda. Inténtalo de nuevo."
             : error.message;
           addMessage("error", text, undefined, error.requestId);
         } finally {
+          typing.remove();
           button.disabled = false;
           input.focus();
         }
       });
 
       input.addEventListener("keydown", function (event) {
-        if (event.key === "Enter" && !event.shiftKey) {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
           event.preventDefault();
           form.requestSubmit();
         }
       });
+
+      Array.prototype.forEach.call(
+        examples.querySelectorAll(".example"),
+        function (example) {
+          example.addEventListener("click", function () {
+            input.value = example.textContent.trim();
+            input.focus();
+          });
+        }
+      );
     })();
   </script>
 </body>
